@@ -1,0 +1,3 @@
+[submodule "contrib/qbsolv"]
+	path = contrib/qbsolv
+	url = https://github.com/dwavesystems/qbsolv.git

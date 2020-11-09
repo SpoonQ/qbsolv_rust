@@ -1,0 +1,11 @@
+--- main.c	2020-11-09 17:00:10.809536152 +0900
++++ main.new.c	2020-11-09 19:06:57.460131816 +0900
+@@ -52,7 +52,7 @@
+ 
+ const int defaultRepeats = 50;
+ 
+-int main(int argc, char *argv[]) {
++int cli_main(int argc, char *argv[]) {
+     /*
+      *  Initialize global variables, set up data structures,
+      *  process the commandline and the environment, ...

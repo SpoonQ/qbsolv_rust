@@ -1,0 +1,13 @@
+--- dwsolv.cc	2020-11-09 17:11:50.086693723 +0900
++++ dwsolv.cc.new	2020-11-09 17:11:58.323259593 +0900
+@@ -48,8 +48,8 @@ int sysResult;
+ int start_;
+ int my_pid_;
+ char DWcommand[256];
+-FILE *f, *fr, *fs;
+-int i, j, k, l;  // working integer set
++static FILE *f, *fr, *fs;
++static int i, j, k, l;  // working integer set
+ //
+ // common declare complete, start function
+ 
