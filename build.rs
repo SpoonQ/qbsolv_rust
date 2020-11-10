@@ -10,7 +10,7 @@ fn main() {
 	let qbsolv_dir = Path::new("contrib").join("qbsolv");
 
 	// mkdir $OUT_DIR/qbsolv
-	fs::remove_dir_all(&dest_dir).unwrap();
+	let _ = fs::remove_dir_all(&dest_dir);
 	fs::create_dir_all(&dest_dir).unwrap();
 
 	let mut files = Vec::new();
@@ -31,6 +31,22 @@ fn main() {
 			}
 		}
 	}
+
+	// Check is the QOP system is available
+	let use_qop = if let Some(dwave_home) = env::var_os("DWAVE_HOME") {
+		if Path::new(&dwave_home).join("libepqmi.a").exists() {
+			println!("cargo:warning=Using QOP");
+			true
+		} else {
+			println!("cargo:warning='libepqmi.a' is not available in your DWAVE_HOME (='{}'). Using local annealer.", dwave_home.to_str().unwrap());
+			false
+		}
+	} else {
+		println!("cargo:warning=DWAVE_HOME not set. Using local annealer.");
+		false
+	};
+	println!("cargo:rerun-if-env-changed=DWAVE_HOME");
+
 	for item in ["dwsolv.cc", "main.c"].iter() {
 		let pfstr = format!("{}.patch", item);
 		let pforigstr = format!("{}.orig", item);
@@ -49,24 +65,48 @@ fn main() {
 	}
 	// let ar_file = dest_dir.join("libqbsolv.a");
 	let mut cc = cc::Build::new();
-	files
+	let mut cc = files
 		.iter()
-		.fold(&mut cc, |cc, file| cc.file(file.to_str().unwrap()))
-		.warnings(false)
+		.fold(&mut cc, |cc, file| cc.file(file.to_str().unwrap()));
+	if use_qop {
+		let dwave_home = env::var_os("DWAVE_HOME").unwrap();
+		let dwave_home = dwave_home.to_str().unwrap();
+		cc = cc
+			.flag("-lepqmi")
+			.flag(&format!("-L {}", &dwave_home))
+			.file(&format!(
+				"{}/{}",
+				&dwave_home,
+				if cfg!(windows) {
+					"dwave_sapi.dll"
+				} else if cfg!(unix) {
+					"libdwave_sapi.so"
+				} else if cfg!(target_os = "macos") {
+					"libdwave_sapi.dylib"
+				} else {
+					"/"
+				}
+			));
+	}
+	if cfg!(windows) {
+		cc = cc.define("WIN", "true");
+	}
+	cc.warnings(false)
 		.extra_warnings(false)
 		.opt_level(3)
 		// .flag("-std=gnu99")
 		.flag("-lm")
 		.shared_flag(true)
 		.static_flag(true)
-		.define("LOCAL", None)
+		.define(if use_qop { "QOP" } else { "LOCAL" }, "true") // use external annealer
 		.out_dir(&dest_dir)
+		.cargo_metadata(true)
 		.compile("qbsolv");
 	println!("cargo:rerun-if-changed=build.rs");
-	println!("cargo:rustc-link-lib=static={}", "qbsolv");
-	println!(
-		"cargo:rustc-link-search=static={}",
-		dest_dir.to_str().unwrap()
-	);
+	// println!("cargo:rustc-link-lib=static={}", "qbsolv");
+	// println!(
+	// 	"cargo:rustc-link-search=static={}",
+	// 	dest_dir.to_str().unwrap()
+	// );
 	// gcc -Wall -O3 -Wextra -std=gnu99 -I ../src -I ../cmd -I ../include  -D LOCAL -o qbsolv *.c *.cc ../cmd/*.c -lm
 }

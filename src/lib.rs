@@ -23,6 +23,12 @@ pub struct QbsolvParams {
 	pub find_max: bool,
 }
 
+unsafe fn unsafe_uninit_vec<T>(n: usize) -> Vec<T> {
+	let mut ret = Vec::with_capacity(n);
+	ret.set_len(n);
+	ret
+}
+
 impl QbsolvParams {
 	pub fn new() -> Self {
 		Self {
@@ -81,14 +87,10 @@ impl QbsolvParams {
 		}
 
 		let mut q_array: Vec<f64> = std::iter::repeat(0.0).take(vals * vals).collect();
-
-		// TODO: initialize of followings are not needed
-		let mut solution_list: Vec<i8> = std::iter::repeat(0)
-			.take(vals * (n_solutions + 1))
-			.collect();
-		let mut energy_list: Vec<f64> = std::iter::repeat(0.0).take(n_solutions + 1).collect();
-		let mut solution_counts: Vec<i32> = std::iter::repeat(0).take(n_solutions + 1).collect();
-		let mut q_index: Vec<i32> = std::iter::repeat(0).take(n_solutions + 1).collect();
+		let mut solution_list: Vec<i8> = unsafe { unsafe_uninit_vec(vals * (n_solutions + 1)) };
+		let mut energy_list: Vec<f64> = unsafe { unsafe_uninit_vec(n_solutions + 1) };
+		let mut solution_counts: Vec<i32> = unsafe { unsafe_uninit_vec(n_solutions + 1) };
+		let mut q_index: Vec<i32> = unsafe { unsafe_uninit_vec(n_solutions + 1) };
 
 		let sign = if self.find_max { 1.0 } else { -1.0 };
 		for (u, v, bias) in q.iter() {
