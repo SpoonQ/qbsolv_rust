@@ -60,14 +60,19 @@ fn main() {
 		if !patch_file.exists() {
 			panic!("patch file {:?} not exists", &patch_file);
 		}
-		Command::new("patch")
+		let output = Command::new("patch")
 			.arg("-u")
 			//.arg("-t") // Ask no questions
 			.args(&["-o", patched_file.to_str().unwrap()])
 			.arg(orig_file.to_str().unwrap())
 			.arg(patch_file.to_str().unwrap())
-			.status()
-			.unwrap();
+			.output()
+			.expect("Failed to run patch command");
+		use std::io::Write;
+		println!("status: {}", output.status);
+		std::io::stdout().write_all(&output.stdout).unwrap();
+		std::io::stderr().write_all(&output.stderr).unwrap();
+		assert!(output.status.success());
 	}
 	// let ar_file = dest_dir.join("libqbsolv.a");
 	let mut cc = cc::Build::new();
