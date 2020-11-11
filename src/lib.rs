@@ -1,11 +1,3 @@
-/// identify methods implemented in the qbsolv library
-pub enum Solver {
-	/// built-in tabu sub-problem solver
-	Tabu,
-	/// built-in dw interface sub-problem solver
-	Dw,
-}
-
 pub enum Algorithm {
 	EnergyImpact,
 	SolutionDiversity,
@@ -17,8 +9,7 @@ pub struct QbsolvParams {
 	pub verbosity: i32,
 	pub algorithm: Algorithm,
 	pub timeout: usize,
-	pub solver_limit: Option<()>,
-	pub solver: Solver,
+	pub solver_limit: Option<usize>,
 	pub target: Option<f64>,
 	pub find_max: bool,
 }
@@ -38,13 +29,37 @@ impl QbsolvParams {
 			algorithm: Algorithm::EnergyImpact,
 			timeout: 2592000,
 			solver_limit: None,
-			solver: Solver::Tabu,
 			target: None,
 			find_max: false,
 		}
 	}
 
-	pub fn run(&self, q: &[(usize, usize, f64)], vals: usize) -> Vec<(Vec<bool>, f64, usize)> {
+	/// Solve with qbsolv's internal tabu search algorithm.
+	pub fn run_internal(
+		&self,
+		q: &[(usize, usize, f64)],
+		vals: usize,
+	) -> Vec<(Vec<bool>, f64, usize)> {
+		self.run(q, vals, false)
+	}
+
+	/// Solve with DWave API.
+	/// It requires valid installation of qOp in your ${DWAVE_HOME}.
+	#[cfg(use_qop)]
+	pub fn run_dwave(
+		&self,
+		q: &[(usize, usize, f64)],
+		vals: usize,
+	) -> Vec<(Vec<bool>, f64, usize)> {
+		self.run(q, vals, true)
+	}
+
+	fn run(
+		&self,
+		q: &[(usize, usize, f64)],
+		vals: usize,
+		use_qop: bool,
+	) -> Vec<(Vec<bool>, f64, usize)> {
 		let n_solutions = match self.algorithm {
 			Algorithm::EnergyImpact => {
 				unsafe {
@@ -79,7 +94,12 @@ impl QbsolvParams {
 		}
 		let mut params = unsafe { ffi::default_parameters() };
 		params.repeats = self.num_repeats as i32;
-		if let Solver::Dw = self.solver {
+		if let Some(solver_limit) = self.solver_limit {
+			params.sub_size = solver_limit as i32;
+		}
+
+		if use_qop {
+			#[cfg(use_qop)]
 			unsafe {
 				params.sub_sampler = ffi::dw_sub_sample as unsafe extern "C" fn(_, _, _, _);
 				params.sub_size = ffi::dw_init();
@@ -170,7 +190,10 @@ mod ffi {
 			sub_solution: *mut i8,
 			sub_sampler_data: *mut u8,
 		);
+
+		#[cfg(use_qop)]
 		pub fn dw_init() -> i32;
+
 		pub fn srand(seed: u32);
 		pub static mut algo_: [*const u8; 2];
 		pub static mut Target_: f64;

@@ -87,6 +87,7 @@ fn main() {
 					"/"
 				}
 			));
+		println!("cargo:rustc-cfg=use_qop");
 	}
 	if cfg!(windows) {
 		cc = cc.define("WIN", "true");
