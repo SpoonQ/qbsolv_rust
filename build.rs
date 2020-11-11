@@ -54,6 +54,12 @@ fn main() {
 		let patched_file = dest_dir.join(item);
 		let orig_file = dest_dir.join(&pforigstr);
 		fs::rename(&patched_file, &orig_file).unwrap();
+		if !orig_file.exists() {
+			panic!("orig file {:?} not exists", &orig_file);
+		}
+		if !patch_file.exists() {
+			panic!("patch file {:?} not exists", &patch_file);
+		}
 		Command::new("patch")
 			.arg("-u")
 			.arg("-t") // Ask no questions
