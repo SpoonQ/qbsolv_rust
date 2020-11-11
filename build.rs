@@ -47,7 +47,7 @@ fn main() {
 	};
 	println!("cargo:rerun-if-env-changed=DWAVE_HOME");
 
-	for item in ["dwsolv.cc", "main.c"].iter() {
+	for item in ["dwsolv.cc", "main.c", "wingetopt.h"].iter() {
 		let pfstr = format!("{}.patch", item);
 		let pforigstr = format!("{}.orig", item);
 		let patch_file = Path::new(&pfstr);
@@ -101,7 +101,7 @@ fn main() {
 	cc.warnings(false)
 		.extra_warnings(false)
 		.opt_level(3)
-		.flag("-std=gnu99")
+		// .flag("-std=gnu99")
 		.flag("-lm")
 		.shared_flag(true)
 		.static_flag(true)

@@ -1,0 +1,32 @@
+--- wingetopt.h	2020-11-11 22:47:51.828359471 +0900
++++ wingetopt.h.new	2020-11-11 22:47:03.511062929 +0900
+@@ -115,6 +115,14 @@ static char EMSG[] = "";
+ #define	EMSG		""
+ #endif
+ 
++struct option		/* specification for a long form option...	*/
++{
++  const char *name;		/* option name, without leading hyphens */
++  int         has_arg;		/* does it take an argument?		*/
++  int        *flag;		/* where to save its status, or NULL	*/
++  int         val;		/* its associated status value		*/
++};
++
+ static int getopt_internal(int, char * const *, const char *,
+ 			   const struct option *, int *, int);
+ static int parse_long_options(char * const *, const char *,
+@@ -265,14 +273,6 @@ extern int optreset;
+ extern "C" {
+ #endif
+ 
+-struct option		/* specification for a long form option...	*/
+-{
+-  const char *name;		/* option name, without leading hyphens */
+-  int         has_arg;		/* does it take an argument?		*/
+-  int        *flag;		/* where to save its status, or NULL	*/
+-  int         val;		/* its associated status value		*/
+-};
+-
+ enum    		/* permitted values for its `has_arg' field...	*/
+ {
+   no_argument = 0,      	/* option never takes an argument	*/
