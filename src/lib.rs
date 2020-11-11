@@ -20,6 +20,16 @@ unsafe fn unsafe_uninit_vec<T>(n: usize) -> Vec<T> {
 	ret
 }
 
+#[allow(dead_code)]
+enum Solver<T> {
+	Tabu,
+	Dw,
+	Callback {
+		callback: fn(&[&[f64]], usize, &T) -> Vec<bool>,
+		data: T,
+	},
+}
+
 impl QbsolvParams {
 	pub fn new() -> Self {
 		Self {
@@ -34,13 +44,24 @@ impl QbsolvParams {
 		}
 	}
 
+	/// Solve subqubo with callback.
+	pub fn run_with_callback<T>(
+		&self,
+		q: &[(usize, usize, f64)],
+		vals: usize,
+		callback: fn(&[&[f64]], usize, &T) -> Vec<bool>,
+		data: T,
+	) -> Vec<(Vec<bool>, f64, usize)> {
+		self.run(q, vals, Solver::Callback { callback, data })
+	}
+
 	/// Solve with qbsolv's internal tabu search algorithm.
 	pub fn run_internal(
 		&self,
 		q: &[(usize, usize, f64)],
 		vals: usize,
 	) -> Vec<(Vec<bool>, f64, usize)> {
-		self.run(q, vals, false)
+		self.run::<()>(q, vals, Solver::Tabu)
 	}
 
 	/// Solve with DWave API.
@@ -51,14 +72,14 @@ impl QbsolvParams {
 		q: &[(usize, usize, f64)],
 		vals: usize,
 	) -> Vec<(Vec<bool>, f64, usize)> {
-		self.run(q, vals, true)
+		self.run::<()>(q, vals, Solver::Dw)
 	}
 
-	fn run(
+	fn run<T>(
 		&self,
 		q: &[(usize, usize, f64)],
 		vals: usize,
-		use_qop: bool,
+		solver: Solver<T>,
 	) -> Vec<(Vec<bool>, f64, usize)> {
 		let n_solutions = match self.algorithm {
 			Algorithm::EnergyImpact => {
@@ -98,12 +119,17 @@ impl QbsolvParams {
 			params.sub_size = solver_limit as i32;
 		}
 
-		if use_qop {
-			#[cfg(use_qop)]
-			unsafe {
+		match &solver {
+			Solver::Dw => {
 				params.sub_sampler = ffi::dw_sub_sample as unsafe extern "C" fn(_, _, _, _);
-				params.sub_size = ffi::dw_init();
+				params.sub_size = unsafe { ffi::dw_init() };
 			}
+			Solver::Callback { .. } => {
+				params.sub_sampler =
+					Self::subqubo_callback::<T> as unsafe extern "C" fn(_, _, _, _);
+				params.sub_sampler_data = &solver as *const Solver<T> as *const _;
+			}
+			_ => (),
 		}
 
 		let mut q_array: Vec<f64> = std::iter::repeat(0.0).take(vals * vals).collect();
@@ -151,6 +177,33 @@ impl QbsolvParams {
 		}
 		ret
 	}
+
+	extern "C" fn subqubo_callback<T>(
+		sub_qubo: *const f64,
+		vals: i32,
+		sub_solution: *mut i8,
+		sub_sampler_data: *const std::ffi::c_void,
+	) {
+		// sub_qubo: vals x vals
+		// sub_solution: vals
+		let vals = vals as usize;
+		let sub_solution = unsafe { std::slice::from_raw_parts_mut(sub_solution, vals) };
+		let solver = unsafe { sub_sampler_data.cast::<&Solver<T>>().as_ref().unwrap() };
+		if let Solver::Callback { callback, data } = solver {
+			let v = (0..vals)
+				.map(|i| unsafe {
+					std::slice::from_raw_parts(sub_qubo.offset((i * vals) as isize), vals)
+				})
+				.collect::<Vec<_>>();
+			let ret = callback(&v, vals, data);
+			assert!(ret.len() == vals);
+			for (i, b) in ret.iter().enumerate() {
+				sub_solution[i] = if *b { 1 } else { 0 };
+			}
+		} else {
+			panic!()
+		}
+	}
 }
 
 #[test]
@@ -165,9 +218,9 @@ mod ffi {
 	#[repr(C)]
 	pub struct paramaters_t {
 		pub repeats: i32,
-		pub sub_sampler: unsafe extern "C" fn(*mut f64, i32, *mut i8, *mut u8),
+		pub sub_sampler: unsafe extern "C" fn(*const f64, i32, *mut i8, *const std::ffi::c_void),
 		pub sub_size: i32,
-		pub sub_sampler_data: *mut u8,
+		pub sub_sampler_data: *const std::ffi::c_void,
 	}
 
 	#[no_mangle]
@@ -185,15 +238,13 @@ mod ffi {
 			param: *const paramaters_t,
 		);
 		pub fn dw_sub_sample(
-			sub_qubo: *mut f64,
+			sub_qubo: *const f64,
 			subMatrix: i32,
 			sub_solution: *mut i8,
-			sub_sampler_data: *mut u8,
+			sub_sampler_data: *const std::ffi::c_void,
 		);
 
-		#[cfg(use_qop)]
 		pub fn dw_init() -> i32;
-
 		pub fn srand(seed: u32);
 		pub static mut algo_: [*const u8; 2];
 		pub static mut Target_: f64;
