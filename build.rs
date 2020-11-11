@@ -62,7 +62,7 @@ fn main() {
 		}
 		Command::new("patch")
 			.arg("-u")
-			.arg("-t") // Ask no questions
+			//.arg("-t") // Ask no questions
 			.args(&["-o", patched_file.to_str().unwrap()])
 			.arg(orig_file.to_str().unwrap())
 			.arg(patch_file.to_str().unwrap())
