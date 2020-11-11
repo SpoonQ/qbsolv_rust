@@ -9,3 +9,4 @@ edition = "2018"
 
 [build-dependencies]
 cc = { version = "1.0", features = ["parallel"] }
+unidiff = "0.3.3"

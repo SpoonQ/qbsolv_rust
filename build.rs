@@ -1,6 +1,8 @@
 extern crate cc;
 use std::env;
 use std::fs;
+use std::io;
+use std::io::{BufRead, Write};
 use std::path::Path;
 use std::process::Command;
 
@@ -47,28 +49,71 @@ fn main() {
 	};
 	println!("cargo:rerun-if-env-changed=DWAVE_HOME");
 
-	for item in ["dwsolv.cc", "main.c", "wingetopt.h"].iter() {
-		let pfstr = format!("{}.patch", item);
+	let patches = [
+		("dwsolv.cc", include_str!("dwsolv.cc.patch")),
+		("main.c", include_str!("main.c.patch")),
+		("wingetopt.h", include_str!("wingetopt.h.patch")),
+	];
+	for (item, patch) in patches.iter() {
+		let mut patch_set = unidiff::PatchSet::new();
+		patch_set.parse(patch).expect("Error parsing diff");
 		let pforigstr = format!("{}.orig", item);
-		let patch_file = Path::new(&pfstr);
 		let patched_file = dest_dir.join(item);
 		let orig_file = dest_dir.join(&pforigstr);
 		fs::rename(&patched_file, &orig_file).unwrap();
-		if !orig_file.exists() {
-			panic!("orig file {:?} not exists", &orig_file);
-		}
-		if !patch_file.exists() {
-			panic!("patch file {:?} not exists", &patch_file);
-		}
+		for modified_file in patch_set.modified_files() {
+			let dst_file = fs::File::create(&patched_file).unwrap();
+			let mut dst_buf = io::BufWriter::new(dst_file);
+			let old_file = fs::File::open(&orig_file).unwrap();
+			let mut old_buf = io::BufReader::new(old_file);
+			let mut cursor = 0;
 
-		Command::new("/usr/bin/patch")
-			.arg("-u")
-			//.arg("-t") // Ask no questions
-			.args(&["-o", patched_file.to_str().unwrap()])
-			.arg(orig_file.to_str().unwrap())
-			.arg(patch_file.to_str().unwrap())
-			.status()
-			.unwrap();
+			for (i, hunk) in modified_file.into_iter().enumerate() {
+				// Write old lines from cursor to the start of this hunk.
+				let num_lines = hunk.source_start - cursor - 1;
+				for _ in 0..num_lines {
+					let mut line = String::new();
+					old_buf.read_line(&mut line).unwrap();
+					dst_buf.write_all(line.as_bytes()).unwrap();
+				}
+				cursor += num_lines;
+
+				// Skip lines in old_file, and verify that what we expect to
+				// replace is present in the old_file.
+				for expected_line in hunk.source_lines() {
+					let mut actual_line = String::new();
+					old_buf.read_line(&mut actual_line).unwrap();
+					actual_line.pop(); // Remove the trailing newline.
+					if expected_line.value.trim_end() != actual_line {
+						panic!(
+							"Can't apply patch; mismatch between expected and actual in hunk {}",
+							i
+						);
+					}
+				}
+				cursor += hunk.source_length;
+
+				// Write the new lines into the destination.
+				for line in hunk.target_lines() {
+					dst_buf.write_all(line.value.as_bytes()).unwrap();
+					dst_buf.write_all(b"\n").unwrap();
+				}
+			}
+
+			// Write all remaining lines from the old file into the new.
+			for line in old_buf.lines() {
+				dst_buf.write_all(&line.unwrap().into_bytes()).unwrap();
+				dst_buf.write_all(b"\n").unwrap();
+			}
+		}
+		// Command::new("/usr/bin/patch")
+		// 	.arg("-u")
+		// 	//.arg("-t") // Ask no questions
+		// 	.args(&["-o", patched_file.to_str().unwrap()])
+		// 	.arg(orig_file.to_str().unwrap())
+		// 	.arg(patch_file.to_str().unwrap())
+		// 	.status()
+		// 	.unwrap();
 	}
 	// let ar_file = dest_dir.join("libqbsolv.a");
 	let mut cc = cc::Build::new();
