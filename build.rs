@@ -101,7 +101,7 @@ fn main() {
 	cc.warnings(false)
 		.extra_warnings(false)
 		.opt_level(3)
-		// .flag("-std=gnu99")
+		.flag("-std=gnu99")
 		.flag("-lm")
 		.shared_flag(true)
 		.static_flag(true)
