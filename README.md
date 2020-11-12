@@ -2,7 +2,7 @@
 
 The Rust wrapper of D-Wave's qbsolv software.
 
-![cross_test](https://github.com/SpoonQ/annealers_rust/workflows/cross_test/badge.svg?branch=main)
+![cross_test](https://github.com/SpoonQ/qbsolv_rust/workflows/cross_test/badge.svg?branch=main)
 
 - [GitHub](//github.com/SpoonQ/qbsolv_rust)
 - [Website](//spoonq.github.io/qbsolv_rust)
